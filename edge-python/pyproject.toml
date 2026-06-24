@@ -1,0 +1,24 @@
+[project]
+name = "obd-edge"
+version = "0.1.0"
+description = "Python edge layer for LILYGO serial CAN bridge, OBD-II, UDS, DBC and MQTT"
+requires-python = ">=3.9"
+dependencies = [
+  "cantools>=39.4",
+  "can-isotp>=2.0",
+  "paho-mqtt>=2.1",
+  "pyserial>=3.5",
+  "python-can>=4.4",
+  "udsoncan>=1.23"
+]
+
+[project.optional-dependencies]
+elm327 = ["obd>=0.7"]
+dev = ["ruff>=0.6"]
+
+[project.scripts]
+obd-edge = "obd_edge.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"

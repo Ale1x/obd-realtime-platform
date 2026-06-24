@@ -1,0 +1,196 @@
+version: "3"
+
+dotenv:
+  - ".env"
+
+vars:
+  COMPOSE_FILE: infra/docker-compose.yml
+
+env:
+  GOCACHE: "{{.ROOT_DIR}}/.cache/go-build"
+  GOMODCACHE: "{{.ROOT_DIR}}/.cache/go-mod"
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  setup:
+    desc: Install local development dependencies
+    cmds:
+      - pnpm install
+      - task: backend:deps
+      - task: simulator:deps
+      - task: edge:deps
+
+  dev:
+    desc: "Run local dev without ESP/car: MQTT + Go backend + simulator + React SPA"
+    deps:
+      - infra:mqtt
+    cmds:
+      - task --parallel backend:dev simulator:dev web:dev
+
+  dev:services:
+    desc: Run backend and simulator only
+    deps:
+      - infra:mqtt
+    cmds:
+      - task --parallel backend:dev simulator:dev
+
+  dev:edge:
+    desc: Run local dev with LILYGO serial bridge instead of simulator
+    deps:
+      - infra:mqtt
+    cmds:
+      - task --parallel backend:dev edge:poll-obd web:dev
+
+  infra:mqtt:
+    desc: Start only the MQTT broker
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up -d mqtt
+
+  infra:up:
+    desc: Start the full local infrastructure stack
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up -d
+
+  infra:down:
+    desc: Stop local infrastructure
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} down
+
+  infra:logs:
+    desc: Follow infrastructure logs
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} logs -f
+
+  backend:deps:
+    desc: Download backend Go dependencies
+    dir: backend
+    cmds:
+      - go mod download
+
+  backend:dev:
+    desc: Run Go backend
+    dir: backend
+    env:
+      HTTP_ADDR: '{{.HTTP_ADDR | default ":3000"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      MQTT_TOPIC: '{{.MQTT_TOPIC | default "obd/v1/+/telemetry"}}'
+      KAFKA_ENABLED: '{{.KAFKA_ENABLED | default "false"}}'
+      KAFKA_BROKERS: '{{.KAFKA_BROKERS | default "localhost:19092"}}'
+    cmds:
+      - go run .
+
+  backend:test:
+    desc: Test Go backend
+    dir: backend
+    cmds:
+      - go test ./...
+
+  simulator:deps:
+    desc: Download simulator Go dependencies
+    dir: simulator
+    cmds:
+      - go mod download
+
+  simulator:dev:
+    desc: Run MQTT telemetry simulator
+    dir: simulator
+    env:
+      DEVICE_ID: '{{.DEVICE_ID | default "dev-simulator"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      SIM_RATE_MS: '{{.SIM_RATE_MS | default "200"}}'
+    cmds:
+      - go run .
+
+  web:dev:
+    desc: Run React SPA
+    env:
+      VITE_WS_URL: '{{.VITE_WS_URL | default "ws://localhost:3000/ws"}}'
+    cmds:
+      - pnpm --filter @obd/web dev
+
+  web:build:
+    desc: Build React SPA
+    env:
+      VITE_WS_URL: '{{.VITE_WS_URL | default "ws://localhost:3000/ws"}}'
+    cmds:
+      - pnpm --filter @obd/web build
+
+  web:typecheck:
+    desc: Typecheck frontend packages
+    cmds:
+      - pnpm -r typecheck
+
+  test:
+    desc: Run available tests/checks
+    cmds:
+      - task: backend:test
+      - task: simulator:test
+      - task: edge:test
+
+  simulator:test:
+    desc: Test Go simulator
+    dir: simulator
+    cmds:
+      - go test ./...
+
+  edge:venv:
+    desc: Create Python virtualenv for the edge layer
+    cmds:
+      - python3 -m venv edge-python/.venv
+
+  edge:deps:
+    desc: Install Python automotive edge dependencies
+    dir: edge-python
+    cmds:
+      - test -d .venv || python3 -m venv .venv
+      - .venv/bin/python -m pip install -e .
+
+  edge:poll-obd:
+    desc: Poll OBD-II through LILYGO serial bridge and publish MQTT
+    dir: edge-python
+    env:
+      SERIAL_PORT: '{{.SERIAL_PORT | default "/dev/cu.usbserial-5B320392561"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
+    cmds:
+      - .venv/bin/obd-edge poll-obd --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID"
+
+  edge:sniff:
+    desc: Sniff raw CAN through LILYGO serial bridge and publish MQTT events
+    dir: edge-python
+    env:
+      SERIAL_PORT: '{{.SERIAL_PORT | default "/dev/cu.usbserial-5B320392561"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
+    cmds:
+      - .venv/bin/obd-edge sniff --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID"
+
+  edge:test:
+    desc: Compile Python edge code
+    dir: edge-python
+    env:
+      PYTHONPYCACHEPREFIX: "{{.ROOT_DIR}}/.cache/pycache"
+    cmds:
+      - python3 -m compileall obd_edge
+
+  firmware:build:
+    desc: Build ESP32 firmware
+    dir: firmware/lilygo-tcan485
+    cmds:
+      - pio run
+
+  firmware:upload:
+    desc: Upload ESP32 firmware
+    dir: firmware/lilygo-tcan485
+    cmds:
+      - pio run -t upload
+
+  firmware:monitor:
+    desc: Open PlatformIO serial monitor
+    dir: firmware/lilygo-tcan485
+    cmds:
+      - pio device monitor

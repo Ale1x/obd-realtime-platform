@@ -1,0 +1,16 @@
+{
+  "name": "obd-realtime-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OBD realtime platform monorepo",
+  "scripts": {
+    "dev:web": "pnpm --filter @obd/web dev",
+    "dev:backend": "cd backend && go run .",
+    "dev:simulator": "cd simulator && go run .",
+    "build:web": "pnpm --filter @obd/web build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
