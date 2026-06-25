@@ -2,6 +2,8 @@
 
 #include "config.h"
 
+static bool recoveryPending = false;
+
 static bool timingForBitrate(uint32_t bitrate, twai_timing_config_t &timingConfig) {
   switch (bitrate) {
     case 125000:
@@ -74,6 +76,7 @@ bool canDriverStart() {
   Serial.print("{\"type\":\"can_ready\",\"bitrate\":");
   Serial.print(CAN_BITRATE);
   Serial.println("}");
+  recoveryPending = false;
   return true;
 }
 
@@ -85,6 +88,54 @@ bool canDriverSend(const twai_message_t &frame, uint32_t timeoutMs, esp_err_t &e
 bool canDriverReceive(twai_message_t &frame, uint32_t timeoutMs, esp_err_t &err) {
   err = twai_receive(&frame, pdMS_TO_TICKS(timeoutMs));
   return err == ESP_OK;
+}
+
+void canDriverRecover() {
+  twai_status_info_t status = {};
+  esp_err_t err = twai_get_status_info(&status);
+  if (err != ESP_OK) {
+    Serial.print("{\"type\":\"err\",\"message\":\"twai status failed\",\"err\":");
+    Serial.print(static_cast<int>(err));
+    Serial.println("}");
+    return;
+  }
+
+  if (status.state == TWAI_STATE_BUS_OFF) {
+    err = twai_initiate_recovery();
+    Serial.print("{\"type\":\"can_recovery_start\",\"ok\":");
+    Serial.print(err == ESP_OK ? "true" : "false");
+    Serial.print(",\"err\":");
+    Serial.print(static_cast<int>(err));
+    Serial.println("}");
+    recoveryPending = err == ESP_OK;
+    return;
+  }
+
+  if (status.state == TWAI_STATE_STOPPED) {
+    err = twai_start();
+    Serial.print("{\"type\":\"can_restart\",\"ok\":");
+    Serial.print(err == ESP_OK ? "true" : "false");
+    Serial.print(",\"err\":");
+    Serial.print(static_cast<int>(err));
+    Serial.println("}");
+    recoveryPending = err == ESP_OK ? false : recoveryPending;
+  }
+}
+
+void canDriverService() {
+  twai_status_info_t status = {};
+  if (twai_get_status_info(&status) != ESP_OK) {
+    return;
+  }
+
+  if (status.state == TWAI_STATE_BUS_OFF) {
+    canDriverRecover();
+    return;
+  }
+
+  if (recoveryPending && status.state == TWAI_STATE_STOPPED) {
+    canDriverRecover();
+  }
 }
 
 void canDriverPrintStatus() {

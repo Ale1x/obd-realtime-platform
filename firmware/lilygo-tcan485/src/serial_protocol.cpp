@@ -146,6 +146,11 @@ static void handleCommand(String line) {
     return;
   }
 
+  if (line == "RECOVER") {
+    canDriverRecover();
+    return;
+  }
+
   handleTxCommand(line);
 }
 

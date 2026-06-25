@@ -22,6 +22,8 @@ void loop() {
     return;
   }
 
+  canDriverService();
+
   twai_message_t frame = {};
   esp_err_t err = ESP_OK;
   if (canDriverReceive(frame, CAN_RX_TIMEOUT_MS, err)) {

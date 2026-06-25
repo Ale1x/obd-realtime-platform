@@ -163,9 +163,93 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 16
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "obd_signal_value{signal=~\"boostBar|boostRatio|intakePressureKpa|barometricKpa\"}",
+          "legendFormat": "{{signal}} {{device_id}}"
+        }
+      ],
+      "title": "Turbo",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "obd_signal_value{signal=~\"fuelRailPressureKpa|mafGps|airMassPerStrokeMg|estimatedDieselInjectionMgStroke|estimatedDieselFuelRateLh\"}",
+          "legendFormat": "{{signal}} {{device_id}}"
+        }
+      ],
+      "title": "Air And Fuel",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "obd_signal_value{signal=~\"estimatedPowerHp|estimatedPowerKw|estimatedTorqueNm\"}",
+          "legendFormat": "{{signal}} {{device_id}}"
+        }
+      ],
+      "title": "Estimated Power",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "obd_signal_value{signal=~\"commandedEgrPct|egrErrorPct|acceleratorPedalDPct|acceleratorPedalEPct|commandedThrottlePct|relativeThrottlePct\"}",
+          "legendFormat": "{{signal}} {{device_id}}"
+        }
+      ],
+      "title": "Driver And EGR",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
       },
       "id": 6,
       "targets": [

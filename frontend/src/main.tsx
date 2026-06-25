@@ -22,20 +22,40 @@ const signalMeta: Array<{ key: keyof ObdSignals; label: string; unit: string; pr
   { key: "loadPct", label: "Load", unit: "%", precision: 1 },
   { key: "boostBar", label: "Boost", unit: "bar", precision: 2 },
   { key: "boostKpa", label: "Boost", unit: "kPa", precision: 1 },
+  { key: "boostRatio", label: "Boost ratio", unit: "x", precision: 2 },
+  { key: "fuelRailPressureKpa", label: "Fuel rail", unit: "kPa" },
   { key: "estimatedDieselFuelRateLh", label: "Fuel rate est.", unit: "L/h", precision: 2 },
   { key: "estimatedDieselInjectionMgStroke", label: "Injection est.", unit: "mg/str", precision: 2 },
+  { key: "engineFuelRateLh", label: "Fuel rate ECU", unit: "L/h", precision: 2 },
+  { key: "airMassPerStrokeMg", label: "Air / stroke", unit: "mg/str", precision: 1 },
+  { key: "estimatedPowerKw", label: "Power est.", unit: "kW", precision: 1 },
+  { key: "estimatedPowerHp", label: "Power est.", unit: "hp", precision: 1 },
+  { key: "estimatedTorqueNm", label: "Torque est.", unit: "Nm", precision: 1 },
   { key: "coolantC", label: "Coolant", unit: "C" },
   { key: "voltage", label: "Voltage", unit: "V", precision: 2 },
   { key: "intakeTempC", label: "Intake temp", unit: "C" },
   { key: "intakePressureKpa", label: "Intake pressure", unit: "kPa" },
   { key: "mafGps", label: "MAF", unit: "g/s", precision: 2 },
   { key: "timingAdvanceDeg", label: "Timing advance", unit: "deg", precision: 1 },
+  { key: "commandedEgrPct", label: "EGR commanded", unit: "%", precision: 1 },
+  { key: "egrErrorPct", label: "EGR error", unit: "%", precision: 1 },
   { key: "fuelLevelPct", label: "Fuel", unit: "%", precision: 1 },
   { key: "runtimeSec", label: "Runtime", unit: "s" },
+  { key: "distanceWithMilKm", label: "Distance MIL", unit: "km" },
+  { key: "warmupsSinceClear", label: "Warmups", unit: "" },
   { key: "barometricKpa", label: "Barometric", unit: "kPa" },
   { key: "ambientTempC", label: "Ambient", unit: "C" },
+  { key: "relativeThrottlePct", label: "Relative throttle", unit: "%", precision: 1 },
+  { key: "acceleratorPedalDPct", label: "Pedal D", unit: "%", precision: 1 },
+  { key: "acceleratorPedalEPct", label: "Pedal E", unit: "%", precision: 1 },
+  { key: "commandedThrottlePct", label: "Throttle cmd", unit: "%", precision: 1 },
   { key: "oilTempC", label: "Oil temp", unit: "C" },
   { key: "distanceSinceClearKm", label: "Distance since clear", unit: "km" },
+  { key: "speedPer1000RpmKmh", label: "Speed / 1000rpm", unit: "km/h", precision: 2 },
+  { key: "lastZeroToHundredSec", label: "Last 0-100", unit: "s", precision: 2 },
+  { key: "bestZeroToHundredSec", label: "Best 0-100", unit: "s", precision: 2 },
+  { key: "lastEightyToOneTwentySec", label: "Last 80-120", unit: "s", precision: 2 },
+  { key: "bestEightyToOneTwentySec", label: "Best 80-120", unit: "s", precision: 2 },
 ];
 
 function App() {
@@ -92,8 +112,32 @@ function App() {
         <Metric label="Load" value={signals.loadPct} unit="%" />
         <Metric label="Boost" value={signals.boostBar} unit="bar" precision={2} />
         <Metric label="Fuel est." value={signals.estimatedDieselFuelRateLh} unit="L/h" precision={2} />
+        <Metric label="Rail" value={signals.fuelRailPressureKpa} unit="kPa" />
+        <Metric label="Power est." value={signals.estimatedPowerHp} unit="hp" precision={1} />
         <Metric label="Coolant" value={signals.coolantC} unit="C" />
         <Metric label="Voltage" value={signals.voltage} unit="V" precision={2} />
+      </section>
+
+      <section className="performance">
+        <Panel title="Performance">
+          <div className="performance-grid">
+            <HealthItem label="Boost" value={formatWithUnit(signals.boostBar, "bar", 2)} />
+            <HealthItem label="MAP / Baro" value={formatWithUnit(signals.boostRatio, "x", 2)} />
+            <HealthItem label="Rail pressure" value={formatWithUnit(signals.fuelRailPressureKpa, "kPa")} />
+            <HealthItem label="MAF" value={formatWithUnit(signals.mafGps, "g/s", 2)} />
+            <HealthItem label="Air / stroke" value={formatWithUnit(signals.airMassPerStrokeMg, "mg/str", 1)} />
+            <HealthItem label="Injection est." value={formatWithUnit(signals.estimatedDieselInjectionMgStroke, "mg/str", 2)} />
+            <HealthItem label="Fuel rate est." value={formatWithUnit(signals.estimatedDieselFuelRateLh, "L/h", 2)} />
+            <HealthItem label="ECU fuel rate" value={formatWithUnit(signals.engineFuelRateLh, "L/h", 2)} />
+            <HealthItem label="Power est." value={formatWithUnit(signals.estimatedPowerHp, "hp", 1)} />
+            <HealthItem label="Torque est." value={formatWithUnit(signals.estimatedTorqueNm, "Nm", 1)} />
+            <HealthItem label="Pedal D/E" value={`${formatSignal(signals.acceleratorPedalDPct, 1)} / ${formatSignal(signals.acceleratorPedalEPct, 1)} %`} />
+            <HealthItem label="EGR cmd/error" value={`${formatSignal(signals.commandedEgrPct, 1)} / ${formatSignal(signals.egrErrorPct, 1)} %`} />
+            <HealthItem label="Speed / 1000rpm" value={formatWithUnit(signals.speedPer1000RpmKmh, "km/h", 2)} />
+            <HealthItem label="Best 0-100" value={formatWithUnit(signals.bestZeroToHundredSec, "s", 2)} />
+            <HealthItem label="Best 80-120" value={formatWithUnit(signals.bestEightyToOneTwentySec, "s", 2)} />
+          </div>
+        </Panel>
       </section>
 
       <section className="overview">
@@ -294,6 +338,10 @@ function formatSignal(value: number | undefined, precision = 0) {
 
 function formatNumber(value: number | undefined) {
   return value === undefined ? "-" : String(value);
+}
+
+function formatWithUnit(value: number | undefined, unit: string, precision = 0) {
+  return value === undefined ? "-" : `${value.toFixed(precision)} ${unit}`.trim();
 }
 
 function formatDuration(valueMs: number | undefined | null) {

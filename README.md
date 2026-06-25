@@ -163,6 +163,8 @@ Read-only advanced features currently implemented:
 - common UDS DID scan for VIN, ECU software, ECU hardware, supplier and serial metadata
 - derived turbo boost from MAP and barometric pressure
 - estimated diesel fuel rate and injection quantity from MAF
+- standard OBD-II fuel rail pressure, EGR command/error, accelerator pedal and throttle command
+- derived air mass per stroke, boost ratio, estimated torque/power and simple 0-100 / 80-120 timers
 
 ## Useful Tasks
 

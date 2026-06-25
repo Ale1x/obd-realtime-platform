@@ -115,6 +115,10 @@ footer {
   margin-top: 18px;
 }
 
+.performance {
+  margin-top: 12px;
+}
+
 .panel,
 .table-section {
   border: 1px solid #2d3540;
@@ -124,10 +128,15 @@ footer {
 }
 
 .health-grid,
-.diagnostic-grid {
+.diagnostic-grid,
+.performance-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.performance-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .health-item {
@@ -277,6 +286,7 @@ footer {
   .overview,
   .health-grid,
   .diagnostic-grid,
+  .performance-grid,
   .signal-table {
     grid-template-columns: 1fr;
   }
