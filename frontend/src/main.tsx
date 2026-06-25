@@ -14,6 +14,11 @@ type DiagnosticSummary = {
   udsItems: Array<{ did: string; name: string; value: string; error?: string }>;
   rawResponses: Array<{ request?: string; response?: string; responseId?: string }>;
 };
+type EgrAnalysis = {
+  state: string;
+  tone: "neutral" | "ok" | "warn" | "bad";
+  notes: string[];
+};
 
 const signalMeta: Array<{ key: keyof ObdSignals; label: string; unit: string; precision?: number }> = [
   { key: "rpm", label: "RPM", unit: "rpm" },
@@ -91,6 +96,7 @@ function App() {
   const health = message?.payload.health ?? {};
   const packetAgeMs = message ? Math.max(0, clock - Date.parse(message.receivedAt)) : null;
   const diagnostic = useMemo(() => summarizeDiagnostics(events), [events]);
+  const egrAnalysis = useMemo(() => analyzeEgr(signals), [signals]);
   const responseRate = health.txRequests
     ? Math.round(((health.obdResponses ?? 0) / health.txRequests) * 100)
     : undefined;
@@ -137,6 +143,28 @@ function App() {
             <HealthItem label="Best 0-100" value={formatWithUnit(signals.bestZeroToHundredSec, "s", 2)} />
             <HealthItem label="Best 80-120" value={formatWithUnit(signals.bestEightyToOneTwentySec, "s", 2)} />
           </div>
+        </Panel>
+      </section>
+
+      <section className="performance">
+        <Panel title="EGR Analysis">
+          <div className="analysis-grid">
+            <HealthItem label="State" value={egrAnalysis.state} tone={egrAnalysis.tone} />
+            <HealthItem label="Command" value={formatWithUnit(signals.commandedEgrPct, "%", 1)} />
+            <HealthItem label="Error" value={formatWithUnit(signals.egrErrorPct, "%", 1)} tone={Math.abs(signals.egrErrorPct ?? 0) > 10 ? "warn" : "ok"} />
+            <HealthItem label="MAF" value={formatWithUnit(signals.mafGps, "g/s", 2)} />
+            <HealthItem label="Air / stroke" value={formatWithUnit(signals.airMassPerStrokeMg, "mg/str", 1)} />
+            <HealthItem label="Boost" value={formatWithUnit(signals.boostBar, "bar", 2)} />
+            <HealthItem label="MAP / Baro" value={formatWithUnit(signals.boostRatio, "x", 2)} />
+            <HealthItem label="Load" value={formatWithUnit(signals.loadPct, "%", 1)} />
+            <HealthItem label="Pedal" value={`${formatSignal(signals.acceleratorPedalDPct, 1)} / ${formatSignal(signals.acceleratorPedalEPct, 1)} %`} />
+            <HealthItem label="Intake temp" value={formatWithUnit(signals.intakeTempC, "C")} />
+          </div>
+          <ul className="analysis-notes">
+            {egrAnalysis.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
         </Panel>
       </section>
 
@@ -322,6 +350,56 @@ function summarizeDiagnostics(events: LiveMessage[]): DiagnosticSummary {
   summary.udsItems = summary.udsItems.slice(0, 16);
   summary.rawResponses = summary.rawResponses.slice(0, 8);
   return summary;
+}
+
+function analyzeEgr(signals: ObdSignals): EgrAnalysis {
+  const command = signals.commandedEgrPct;
+  const error = signals.egrErrorPct;
+  const load = signals.loadPct;
+  const pedal = Math.max(signals.acceleratorPedalDPct ?? 0, signals.acceleratorPedalEPct ?? 0);
+  const maf = signals.mafGps;
+  const boost = signals.boostBar;
+  const notes: string[] = [];
+
+  if (command === undefined && error === undefined) {
+    return {
+      state: "No EGR PID",
+      tone: "neutral",
+      notes: ["ECU is not publishing EGR command/error yet."],
+    };
+  }
+
+  const underLoad = (load ?? 0) > 45 || pedal > 35 || (boost ?? 0) > 0.25;
+  let state = "EGR inactive";
+  let tone: EgrAnalysis["tone"] = "ok";
+
+  if ((command ?? 0) > 5) {
+    state = "EGR active";
+  }
+  if (underLoad && (command ?? 0) <= 5) {
+    state = "Closed under load";
+  }
+  if (Math.abs(error ?? 0) > 10) {
+    state = "Flow mismatch";
+    tone = "warn";
+    notes.push("EGR error is high: compare MAF and boost under steady load.");
+  }
+  if ((command ?? 0) > 20 && underLoad) {
+    tone = "warn";
+    notes.push("EGR is commanded open while load/pedal is elevated.");
+  }
+  if ((command ?? 0) <= 5 && underLoad) {
+    notes.push("EGR closure under load is expected on many diesel calibrations.");
+  }
+  if (maf !== undefined && maf < 5 && underLoad) {
+    tone = "warn";
+    notes.push("MAF looks low for the requested load; check intake/EGR behavior with a road pull.");
+  }
+  if (notes.length === 0) {
+    notes.push("No obvious EGR anomaly from the current live values.");
+  }
+
+  return { state, tone, notes };
 }
 
 function stringValue(value: unknown): string | undefined {
