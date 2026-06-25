@@ -9,6 +9,9 @@ import can
 OBD_REQUEST_ID = 0x7DF
 OBD_RESPONSE_MIN_ID = 0x7E8
 OBD_RESPONSE_MAX_ID = 0x7EF
+DIESEL_STOICH_AFR = 14.5
+DIESEL_DENSITY_G_PER_L = 832
+ENGINE_CYLINDERS = 4
 
 
 @dataclass
@@ -98,4 +101,33 @@ class Obd2Poller:
             self.state.signals["distanceSinceClearKm"] = (a * 256) + b
         else:
             return False
+        self._update_derived_signals()
         return True
+
+    def _update_derived_signals(self) -> None:
+        intake_pressure = self._number_signal("intakePressureKpa")
+        barometric_pressure = self._number_signal("barometricKpa")
+        if intake_pressure is not None and barometric_pressure is not None:
+            boost_kpa = max(0.0, intake_pressure - barometric_pressure)
+            self.state.signals["boostKpa"] = round(boost_kpa, 1)
+            self.state.signals["boostBar"] = round(boost_kpa / 100, 2)
+
+        maf_gps = self._number_signal("mafGps")
+        if maf_gps is not None:
+            fuel_gps = maf_gps / DIESEL_STOICH_AFR
+            self.state.signals["estimatedDieselFuelRateLh"] = round(
+                fuel_gps * 3600 / DIESEL_DENSITY_G_PER_L,
+                2,
+            )
+
+            rpm = self._number_signal("rpm")
+            if rpm is not None and rpm > 0:
+                injection_events_per_second = rpm / 60 * (ENGINE_CYLINDERS / 2)
+                self.state.signals["estimatedDieselInjectionMgStroke"] = round(
+                    fuel_gps * 1000 / injection_events_per_second,
+                    2,
+                )
+
+    def _number_signal(self, name: str) -> float | None:
+        value = self.state.signals.get(name)
+        return float(value) if isinstance(value, (int, float)) else None

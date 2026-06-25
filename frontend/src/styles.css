@@ -43,6 +43,7 @@ h2 {
 
 p,
 footer,
+.section-note,
 article span,
 article small,
 .events li span,
@@ -178,6 +179,11 @@ footer {
 
 .table-section {
   margin-top: 12px;
+}
+
+.section-note {
+  margin: -4px 0 12px;
+  font-size: 13px;
 }
 
 .signal-table,

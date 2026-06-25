@@ -59,6 +59,10 @@ Implemented read-only operations:
 - raw OBD request/response
 - UDS ReadDataByIdentifier over ISO-TP
 - common UDS DID scan for VIN, ECU software, ECU hardware, supplier and serial metadata
+- derived turbo boost from MAP and barometric pressure
+- estimated diesel fuel rate and injection quantity from MAF
+
+The estimated diesel values are not ECU injection quantity. Precise injected quantity usually needs manufacturer-specific VW/VAG diagnostics or decoded CAN frames.
 
 ## Advanced stack
 

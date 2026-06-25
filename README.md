@@ -161,6 +161,8 @@ Read-only advanced features currently implemented:
 - raw OBD request/response
 - UDS ReadDataByIdentifier over ISO-TP
 - common UDS DID scan for VIN, ECU software, ECU hardware, supplier and serial metadata
+- derived turbo boost from MAP and barometric pressure
+- estimated diesel fuel rate and injection quantity from MAF
 
 ## Useful Tasks
 

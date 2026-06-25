@@ -20,6 +20,10 @@ const signalMeta: Array<{ key: keyof ObdSignals; label: string; unit: string; pr
   { key: "speedKmh", label: "Speed", unit: "km/h" },
   { key: "throttlePct", label: "Throttle", unit: "%", precision: 1 },
   { key: "loadPct", label: "Load", unit: "%", precision: 1 },
+  { key: "boostBar", label: "Boost", unit: "bar", precision: 2 },
+  { key: "boostKpa", label: "Boost", unit: "kPa", precision: 1 },
+  { key: "estimatedDieselFuelRateLh", label: "Fuel rate est.", unit: "L/h", precision: 2 },
+  { key: "estimatedDieselInjectionMgStroke", label: "Injection est.", unit: "mg/str", precision: 2 },
   { key: "coolantC", label: "Coolant", unit: "C" },
   { key: "voltage", label: "Voltage", unit: "V", precision: 2 },
   { key: "intakeTempC", label: "Intake temp", unit: "C" },
@@ -86,8 +90,10 @@ function App() {
         <Metric label="Speed" value={signals.speedKmh} unit="km/h" />
         <Metric label="Throttle" value={signals.throttlePct} unit="%" />
         <Metric label="Load" value={signals.loadPct} unit="%" />
+        <Metric label="Boost" value={signals.boostBar} unit="bar" precision={2} />
+        <Metric label="Fuel est." value={signals.estimatedDieselFuelRateLh} unit="L/h" precision={2} />
         <Metric label="Coolant" value={signals.coolantC} unit="C" />
-        <Metric label="Voltage" value={signals.voltage} unit="V" />
+        <Metric label="Voltage" value={signals.voltage} unit="V" precision={2} />
       </section>
 
       <section className="overview">
@@ -121,6 +127,9 @@ function App() {
 
       <section className="table-section">
         <h2>Signals</h2>
+        <p className="section-note">
+          Boost is derived from manifold pressure minus barometric pressure. Diesel fuel and injection values are estimates from MAF, not ECU injection quantity.
+        </p>
         <div className="signal-table">
           {signalMeta.map((signal) => (
             <div key={signal.key} className={signals[signal.key] === undefined ? "muted-row" : ""}>
@@ -178,11 +187,21 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Metric({ label, value, unit }: { label: string; value?: number; unit: string }) {
+function Metric({
+  label,
+  value,
+  unit,
+  precision = 0,
+}: {
+  label: string;
+  value?: number;
+  unit: string;
+  precision?: number;
+}) {
   return (
     <article>
       <span>{label}</span>
-      <strong>{formatSignal(value)}</strong>
+      <strong>{formatSignal(value, precision)}</strong>
       <small>{unit}</small>
     </article>
   );

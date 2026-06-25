@@ -7,7 +7,11 @@ export type ObdSignals = {
   coolantC?: number;
   intakeTempC?: number;
   intakePressureKpa?: number;
+  boostKpa?: number;
+  boostBar?: number;
   mafGps?: number;
+  estimatedDieselFuelRateLh?: number;
+  estimatedDieselInjectionMgStroke?: number;
   timingAdvanceDeg?: number;
   fuelLevelPct?: number;
   runtimeSec?: number;
