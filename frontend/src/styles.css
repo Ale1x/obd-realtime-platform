@@ -36,10 +36,16 @@ h1 {
   font-weight: 700;
 }
 
+h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
 p,
 footer,
 article span,
-article small {
+article small,
+.events li span {
   color: #9aa8b5;
 }
 
@@ -95,4 +101,45 @@ article strong {
 footer {
   margin-top: 18px;
   font-size: 13px;
+}
+
+.events {
+  margin-top: 24px;
+}
+
+.events ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events li {
+  display: grid;
+  grid-template-columns: 96px 160px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid #2d3540;
+  border-radius: 8px;
+  padding: 12px;
+  background: #191f26;
+}
+
+.events li span,
+.events li strong {
+  font-size: 13px;
+}
+
+.events code {
+  overflow: auto;
+  white-space: nowrap;
+  color: #d9e2ec;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .events li {
+    grid-template-columns: 1fr;
+  }
 }

@@ -36,7 +36,7 @@ Go simulator -> MQTT -> Go backend -> WebSocket -> React dashboard
 ├── firmware/
 │   └── lilygo-tcan485/       # PlatformIO firmware for LILYGO T-CAN485
 ├── frontend/                 # React SPA
-├── infra/                    # Docker Compose: MQTT, Redpanda, Postgres
+├── infra/                    # Docker Compose: MQTT, Redpanda, Postgres, Prometheus, Grafana
 ├── packages/
 │   └── shared/               # Shared TypeScript telemetry types
 ├── simulator/                # Go MQTT telemetry simulator
@@ -47,7 +47,7 @@ Go simulator -> MQTT -> Go backend -> WebSocket -> React dashboard
 ## Requirements
 
 - Go
-- Python 3.9+
+- Python 3.10+
 - Node.js + pnpm
 - Docker or OrbStack
 - PlatformIO
@@ -77,8 +77,20 @@ This starts:
 
 - Mosquitto MQTT on `1883`
 - Go backend on `3000`
+- Prometheus on `9090`
+- Grafana on `3002`
 - Go simulator publishing fake OBD telemetry
 - React SPA on `5173`
+
+Grafana login:
+
+```text
+http://localhost:3002/
+user: admin
+password: obd
+```
+
+The pre-provisioned dashboard is `OBD / OBD Live`.
 
 ## Real Car Dev With LILYGO
 
@@ -129,9 +141,24 @@ The current CLI exposes safe read paths:
 ```sh
 task edge:poll-obd
 task edge:sniff
+task edge:scan-obd
+SERVICE=09 PID=02 task edge:obd-request
+DID=F190 TX_ID=7E0 RX_ID=7E8 task edge:uds-read-did
+TX_ID=7E0 RX_ID=7E8 task edge:uds-scan-common
 ```
 
 Write/reset/flashing UDS operations are intentionally not exposed as one-line commands. Add explicit allowlisted operations before using dangerous ECU services.
+
+Read-only advanced features currently implemented:
+
+- supported PID discovery
+- VIN read via OBD Mode 09 PID 02
+- stored DTC read via Mode 03
+- pending DTC read via Mode 07
+- permanent DTC read via Mode 0A
+- raw OBD request/response
+- UDS ReadDataByIdentifier over ISO-TP
+- common UDS DID scan for VIN, ECU software, ECU hardware, supplier and serial metadata
 
 ## Useful Tasks
 
@@ -145,6 +172,10 @@ task firmware:build
 task firmware:upload
 task edge:poll-obd
 task edge:sniff
+task edge:scan-obd
+task edge:obd-request
+task edge:uds-read-did
+task edge:uds-scan-common
 task infra:up
 task infra:down
 ```
@@ -174,7 +205,37 @@ Telemetry is published as MQTT JSON:
 }
 ```
 
-The Go backend forwards the same envelope to browser clients over WebSocket.
+The Go backend forwards telemetry, status and diagnostic event envelopes to browser clients over WebSocket.
+
+## Prometheus And Grafana
+
+The backend exposes metrics at:
+
+```text
+http://localhost:3000/metrics
+```
+
+Prometheus scrapes the backend every second and stores the latest telemetry as time-series:
+
+```text
+obd_signal_value{device_id="...",signal="rpm"}
+obd_health_value{device_id="...",metric="txRequests"}
+obd_telemetry_packets_total
+obd_websocket_clients
+```
+
+Start observability:
+
+```sh
+task infra:observability
+```
+
+Open:
+
+```text
+Prometheus: http://localhost:9090/
+Grafana:    http://localhost:3002/
+```
 
 ## Security
 

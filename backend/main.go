@@ -12,6 +12,8 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -34,6 +36,16 @@ type LiveEnvelope struct {
 type TelemetryHeader struct {
 	Schema   string `json:"schema"`
 	DeviceID string `json:"deviceId"`
+}
+
+type TelemetryPayload struct {
+	Schema     string              `json:"schema"`
+	DeviceID   string              `json:"deviceId"`
+	Seq        uint64              `json:"seq"`
+	DeviceTsMs int64               `json:"deviceTsMs"`
+	SessionID  string              `json:"sessionId"`
+	Signals    map[string]*float64 `json:"signals"`
+	Health     map[string]*float64 `json:"health"`
 }
 
 type Hub struct {
@@ -84,6 +96,7 @@ func (h *Hub) Count() int {
 func main() {
 	config := loadConfig()
 	hub := NewHub()
+	metrics := newMetrics()
 	ctx := context.Background()
 
 	var kafkaWriter *kafka.Writer
@@ -102,6 +115,7 @@ func main() {
 		envelope, err := buildEnvelope(message.Topic(), message.Payload())
 		if err != nil {
 			log.Printf("invalid telemetry payload topic=%s error=%v", message.Topic(), err)
+			metrics.parseErrors.Inc()
 			return
 		}
 
@@ -111,6 +125,7 @@ func main() {
 			return
 		}
 
+		metrics.observeEnvelope(envelope)
 		hub.Broadcast(serialized)
 
 		if kafkaWriter != nil {
@@ -133,6 +148,7 @@ func main() {
 	}
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		metrics.websocketClients.Set(float64(hub.Count()))
 		writeJSON(w, map[string]any{
 			"ok":               true,
 			"mqttConnected":    mqttClient.IsConnected(),
@@ -140,6 +156,8 @@ func main() {
 			"kafkaEnabled":     config.KafkaEnabled,
 		})
 	})
+
+	http.Handle("/metrics", promhttp.Handler())
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -168,7 +186,7 @@ func loadConfig() Config {
 	return Config{
 		HTTPAddr:      env("HTTP_ADDR", ":3000"),
 		MQTTURL:       env("MQTT_URL", "tcp://localhost:1883"),
-		MQTTTopic:     env("MQTT_TOPIC", "obd/v1/+/telemetry"),
+		MQTTTopic:     env("MQTT_TOPIC", "obd/v1/+/+"),
 		KafkaEnabled:  env("KAFKA_ENABLED", "true") != "false",
 		KafkaBrokers:  strings.Split(env("KAFKA_BROKERS", "localhost:19092"), ","),
 		KafkaTopicRaw: env("KAFKA_TOPIC_RAW", "obd.telemetry.raw"),
@@ -207,15 +225,104 @@ func connectMQTT(config Config, handler mqtt.MessageHandler) mqtt.Client {
 	return client
 }
 
+type appMetrics struct {
+	mqttMessages     prometheus.Counter
+	telemetryPackets prometheus.Counter
+	parseErrors      prometheus.Counter
+	signalValue      *prometheus.GaugeVec
+	healthValue      *prometheus.GaugeVec
+	lastSeenUnix     *prometheus.GaugeVec
+	websocketClients prometheus.Gauge
+}
+
+func newMetrics() *appMetrics {
+	m := &appMetrics{
+		mqttMessages: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "obd_mqtt_messages_total",
+			Help: "Total MQTT messages processed by the backend.",
+		}),
+		telemetryPackets: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "obd_telemetry_packets_total",
+			Help: "Total telemetry packets processed by the backend.",
+		}),
+		parseErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "obd_parse_errors_total",
+			Help: "Total MQTT payload parse errors.",
+		}),
+		signalValue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "obd_signal_value",
+			Help: "Latest OBD signal value by device and signal.",
+		}, []string{"device_id", "signal"}),
+		healthValue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "obd_health_value",
+			Help: "Latest OBD health value by device and metric.",
+		}, []string{"device_id", "metric"}),
+		lastSeenUnix: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "obd_device_last_seen_unix",
+			Help: "Last telemetry receive time as Unix timestamp.",
+		}, []string{"device_id"}),
+		websocketClients: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "obd_websocket_clients",
+			Help: "Currently connected WebSocket clients.",
+		}),
+	}
+
+	prometheus.MustRegister(
+		m.mqttMessages,
+		m.telemetryPackets,
+		m.parseErrors,
+		m.signalValue,
+		m.healthValue,
+		m.lastSeenUnix,
+		m.websocketClients,
+	)
+	return m
+}
+
+func (m *appMetrics) observeEnvelope(envelope LiveEnvelope) {
+	m.mqttMessages.Inc()
+	if envelope.Type != "telemetry" {
+		return
+	}
+
+	var payload TelemetryPayload
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		m.parseErrors.Inc()
+		return
+	}
+
+	deviceID := payload.DeviceID
+	if deviceID == "" {
+		deviceID = envelope.DeviceID
+	}
+	if deviceID == "" {
+		deviceID = "unknown"
+	}
+
+	m.telemetryPackets.Inc()
+	m.lastSeenUnix.WithLabelValues(deviceID).Set(float64(time.Now().Unix()))
+
+	for signal, value := range payload.Signals {
+		if value != nil {
+			m.signalValue.WithLabelValues(deviceID, signal).Set(*value)
+		}
+	}
+	for metric, value := range payload.Health {
+		if value != nil {
+			m.healthValue.WithLabelValues(deviceID, metric).Set(*value)
+		}
+	}
+}
+
 func buildEnvelope(topic string, payload []byte) (LiveEnvelope, error) {
 	var header TelemetryHeader
 	if err := json.Unmarshal(payload, &header); err != nil {
 		return LiveEnvelope{}, err
 	}
 
+	parts := strings.Split(topic, "/")
 	deviceID := header.DeviceID
 	if deviceID == "" {
-		parts := strings.Split(topic, "/")
 		if len(parts) >= 3 {
 			deviceID = parts[2]
 		}
@@ -224,8 +331,19 @@ func buildEnvelope(topic string, payload []byte) (LiveEnvelope, error) {
 		deviceID = "unknown"
 	}
 
+	envelopeType := "event"
+	if len(parts) > 0 {
+		envelopeType = parts[len(parts)-1]
+		if envelopeType == "events" {
+			envelopeType = "event"
+		}
+	}
+	if envelopeType == "" {
+		envelopeType = "event"
+	}
+
 	return LiveEnvelope{
-		Type:       "telemetry",
+		Type:       envelopeType,
 		DeviceID:   deviceID,
 		ReceivedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Payload:    json.RawMessage(payload),

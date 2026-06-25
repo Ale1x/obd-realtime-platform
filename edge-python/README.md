@@ -40,6 +40,24 @@ Flash the firmware with `APP_MODE MODE_SERIAL_CAN_BRIDGE`, then:
   --device-id lilygo-python
 ```
 
+## Advanced read-only diagnostics
+
+```sh
+.venv/bin/obd-edge scan-obd --serial /dev/cu.usbserial-5B320392561
+.venv/bin/obd-edge obd-request --serial /dev/cu.usbserial-5B320392561 --service 09 --pid 02
+.venv/bin/obd-edge uds-read-did --serial /dev/cu.usbserial-5B320392561 --tx-id 7E0 --rx-id 7E8 --did F190
+.venv/bin/obd-edge uds-scan-common --serial /dev/cu.usbserial-5B320392561 --tx-id 7E0 --rx-id 7E8
+```
+
+Implemented read-only operations:
+
+- supported PID discovery
+- VIN read
+- stored, pending and permanent DTC reads
+- raw OBD request/response
+- UDS ReadDataByIdentifier over ISO-TP
+- common UDS DID scan for VIN, ECU software, ECU hardware, supplier and serial metadata
+
 ## Advanced stack
 
 The package installs the core libraries for idiomatic automotive Python:

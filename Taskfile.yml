@@ -27,21 +27,21 @@ tasks:
   dev:
     desc: "Run local dev without ESP/car: MQTT + Go backend + simulator + React SPA"
     deps:
-      - infra:mqtt
+      - infra:observability
     cmds:
       - task --parallel backend:dev simulator:dev web:dev
 
   dev:services:
     desc: Run backend and simulator only
     deps:
-      - infra:mqtt
+      - infra:observability
     cmds:
       - task --parallel backend:dev simulator:dev
 
   dev:edge:
     desc: Run local dev with LILYGO serial bridge instead of simulator
     deps:
-      - infra:mqtt
+      - infra:observability
     cmds:
       - task --parallel backend:dev edge:poll-obd web:dev
 
@@ -49,6 +49,11 @@ tasks:
     desc: Start only the MQTT broker
     cmds:
       - docker compose -f {{.COMPOSE_FILE}} up -d mqtt
+
+  infra:observability:
+    desc: Start MQTT, Prometheus and Grafana
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up -d mqtt prometheus grafana
 
   infra:up:
     desc: Start the full local infrastructure stack
@@ -168,6 +173,53 @@ tasks:
       DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
     cmds:
       - .venv/bin/obd-edge sniff --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID"
+
+  edge:scan-obd:
+    desc: Read supported PIDs, VIN and DTCs through LILYGO
+    dir: edge-python
+    env:
+      SERIAL_PORT: '{{.SERIAL_PORT | default "/dev/cu.usbserial-5B320392561"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
+    cmds:
+      - .venv/bin/obd-edge scan-obd --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID"
+
+  edge:obd-request:
+    desc: Send read-only OBD request, e.g. SERVICE=09 PID=02
+    dir: edge-python
+    env:
+      SERIAL_PORT: '{{.SERIAL_PORT | default "/dev/cu.usbserial-5B320392561"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
+      SERVICE: '{{.SERVICE | default "09"}}'
+      PID: '{{.PID | default "02"}}'
+    cmds:
+      - .venv/bin/obd-edge obd-request --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID" --service "$SERVICE" --pid "$PID"
+
+  edge:uds-read-did:
+    desc: Read UDS DID, e.g. DID=F190 TX_ID=7E0 RX_ID=7E8
+    dir: edge-python
+    env:
+      SERIAL_PORT: '{{.SERIAL_PORT | default "/dev/cu.usbserial-5B320392561"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
+      TX_ID: '{{.TX_ID | default "7E0"}}'
+      RX_ID: '{{.RX_ID | default "7E8"}}'
+      DID: '{{.DID | default "F190"}}'
+    cmds:
+      - .venv/bin/obd-edge uds-read-did --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID" --tx-id "$TX_ID" --rx-id "$RX_ID" --did "$DID"
+
+  edge:uds-scan-common:
+    desc: Read common read-only UDS DIDs, e.g. VIN, ECU software and ECU serial
+    dir: edge-python
+    env:
+      SERIAL_PORT: '{{.SERIAL_PORT | default "/dev/cu.usbserial-5B320392561"}}'
+      MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
+      DEVICE_ID: '{{.DEVICE_ID | default "lilygo-python"}}'
+      TX_ID: '{{.TX_ID | default "7E0"}}'
+      RX_ID: '{{.RX_ID | default "7E8"}}'
+    cmds:
+      - .venv/bin/obd-edge uds-scan-common --serial "$SERIAL_PORT" --mqtt "$MQTT_URL" --device-id "$DEVICE_ID" --tx-id "$TX_ID" --rx-id "$RX_ID"
 
   edge:test:
     desc: Compile Python edge code

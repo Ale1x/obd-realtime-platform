@@ -51,5 +51,33 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    depends_on:
+      - prometheus
+    ports:
+      - "3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: obd
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+
 volumes:
   postgres-data:
+  prometheus-data:
+  grafana-data:
