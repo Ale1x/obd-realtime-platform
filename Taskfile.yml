@@ -5,6 +5,7 @@ dotenv:
 
 vars:
   COMPOSE_FILE: infra/docker-compose.yml
+  PYTHON_BIN: '{{.PYTHON_BIN | default "python3.10"}}'
 
 env:
   GOCACHE: "{{.ROOT_DIR}}/.cache/go-build"
@@ -145,13 +146,14 @@ tasks:
   edge:venv:
     desc: Create Python virtualenv for the edge layer
     cmds:
-      - python3 -m venv edge-python/.venv
+      - "{{.PYTHON_BIN}} -m venv edge-python/.venv"
 
   edge:deps:
     desc: Install Python automotive edge dependencies
     dir: edge-python
     cmds:
-      - test -d .venv || python3 -m venv .venv
+      - test -x .venv/bin/python && .venv/bin/python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' || {{.PYTHON_BIN}} -m venv --clear .venv
+      - .venv/bin/python -m pip install --upgrade pip setuptools wheel
       - .venv/bin/python -m pip install -e .
 
   edge:poll-obd:
