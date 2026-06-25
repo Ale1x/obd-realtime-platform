@@ -126,6 +126,8 @@ obd/v1/lilygo-python/telemetry
 obd/v1/lilygo-python/status
 ```
 
+At startup the Python edge also publishes one read-only diagnostic snapshot with supported PIDs, VIN and DTCs. That snapshot populates the dashboard `Diagnostic Summary`.
+
 ## Python Automotive Layer
 
 The Python edge is where advanced automotive tooling belongs:

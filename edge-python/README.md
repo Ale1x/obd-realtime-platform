@@ -31,6 +31,8 @@ Flash the firmware with `APP_MODE MODE_SERIAL_CAN_BRIDGE`, then:
   --device-id lilygo-python
 ```
 
+By default `poll-obd` publishes one read-only diagnostic snapshot before continuous polling. Disable it with `--no-diagnostics-on-start` if you only want live telemetry.
+
 ## Sniff raw CAN
 
 ```sh

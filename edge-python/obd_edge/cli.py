@@ -21,6 +21,12 @@ def main(argv: list[str] | None = None) -> int:
     add_common_args(poll)
     poll.add_argument("--publish-ms", type=int, default=200)
     poll.add_argument("--pid-interval-ms", type=int, default=80)
+    poll.add_argument(
+        "--diagnostics-on-start",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Publish a read-only diagnostic snapshot before live polling",
+    )
 
     sniff = subparsers.add_parser("sniff", help="Publish raw CAN frames as MQTT events")
     add_common_args(sniff)
@@ -88,6 +94,9 @@ def run_poll_obd(args: argparse.Namespace) -> int:
     last_publish = 0.0
 
     try:
+        if args.diagnostics_on_start:
+            publisher.publish_event(build_scan_obd_result(args.device_id, IsoTpLiteClient(bus)))
+
         while True:
             poller.poll(DEFAULT_PIDS[pid_index])
             pid_index = (pid_index + 1) % len(DEFAULT_PIDS)
@@ -130,35 +139,40 @@ def run_scan_obd(args: argparse.Namespace) -> int:
     bus = make_bus(args)
     client = IsoTpLiteClient(bus)
     try:
-        result: dict[str, object] = {
-            "schema": "obd.diagnostics.v1",
-            "deviceId": args.device_id,
-            "ts": time.time(),
-            "kind": "scan-obd",
-        }
-
-        try:
-            result["supportedPids"] = [f"{pid:02X}" for pid in supported_pids(client)]
-        except DiagnosticError as error:
-            result["supportedPidsError"] = str(error)
-
-        try:
-            result["vin"] = read_vin(client)
-        except DiagnosticError as error:
-            result["vinError"] = str(error)
-
-        for service, name in ((0x03, "storedDtcs"), (0x07, "pendingDtcs"), (0x0A, "permanentDtcs")):
-            try:
-                result[name] = read_dtcs(client, service)
-            except DiagnosticError as error:
-                result[f"{name}Error"] = str(error)
-
+        result = build_scan_obd_result(args.device_id, client)
         print(result)
         publisher.publish_event(result)
         return 0
     finally:
         bus.shutdown()
         publisher.close()
+
+
+def build_scan_obd_result(device_id: str, client: IsoTpLiteClient) -> dict[str, object]:
+    result: dict[str, object] = {
+        "schema": "obd.diagnostics.v1",
+        "deviceId": device_id,
+        "ts": time.time(),
+        "kind": "scan-obd",
+    }
+
+    try:
+        result["supportedPids"] = [f"{pid:02X}" for pid in supported_pids(client)]
+    except DiagnosticError as error:
+        result["supportedPidsError"] = str(error)
+
+    try:
+        result["vin"] = read_vin(client)
+    except DiagnosticError as error:
+        result["vinError"] = str(error)
+
+    for service, name in ((0x03, "storedDtcs"), (0x07, "pendingDtcs"), (0x0A, "permanentDtcs")):
+        try:
+            result[name] = read_dtcs(client, service)
+        except DiagnosticError as error:
+            result[f"{name}Error"] = str(error)
+
+    return result
 
 
 def run_obd_request(args: argparse.Namespace) -> int:

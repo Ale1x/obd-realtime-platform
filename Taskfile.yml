@@ -83,7 +83,7 @@ tasks:
     env:
       HTTP_ADDR: '{{.HTTP_ADDR | default ":3000"}}'
       MQTT_URL: '{{.MQTT_URL | default "tcp://localhost:1883"}}'
-      MQTT_TOPIC: '{{.MQTT_TOPIC | default "obd/v1/+/telemetry"}}'
+      MQTT_TOPIC: '{{.MQTT_TOPIC | default "obd/v1/+/+"}}'
       KAFKA_ENABLED: '{{.KAFKA_ENABLED | default "false"}}'
       KAFKA_BROKERS: '{{.KAFKA_BROKERS | default "localhost:19092"}}'
     cmds:
